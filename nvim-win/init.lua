@@ -24,11 +24,23 @@ require("lazy").setup({
   { "folke/tokyonight.nvim" },
 
   -- PRODUCTIVITY
-  { "windwp/nvim-autopairs", event = "InsertEnter", opts = {} },
-  { "stevearc/oil.nvim", dependencies = { "nvim-tree/nvim-web-devicons" } },
-  { "nvim-telescope/telescope.nvim", dependencies = { "nvim-lua/plenary.nvim" } },
   { "nvim-tree/nvim-web-devicons" },
   { "folke/which-key.nvim", opts = {} },
+
+  { "windwp/nvim-autopairs", event = "InsertEnter", opts = {} },
+
+  {
+    "stevearc/oil.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    opts = { view_options = { show_hidden = true } },
+  },
+
+  {
+    "nvim-telescope/telescope.nvim",
+    dependencies = { "nvim-lua/plenary.nvim" },
+  },
+
+  { "lewis6991/gitsigns.nvim", opts = {} },
 
   -- LSP + MASON
   { "williamboman/mason.nvim" },
@@ -47,14 +59,33 @@ require("lazy").setup({
     },
   },
 
-  -- TREESITTER (FIXADO)
+  -- TREESITTER (CORRIGIDO)
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
+    event = { "BufReadPost", "BufNewFile" },
+    opts = {
+      highlight = { enable = true },
+      indent = { enable = true },
+      ensure_installed = {
+        "lua",
+        "javascript",
+        "typescript",
+        "html",
+        "css",
+        "json",
+        "python",
+        "go",
+        "rust",
+        "c",
+        "cpp",
+        "php",
+      },
+    },
+    config = function(_, opts)
+      require("nvim-treesitter.configs").setup(opts)
+    end,
   },
-
-  -- GIT (produtividade real)
-  { "lewis6991/gitsigns.nvim", opts = {} },
 })
 
 -- ============================================================
@@ -91,36 +122,49 @@ vim.o.autochdir = false
 vim.cmd.colorscheme("tokyonight-night")
 
 -- ============================================================
+-- KEYMAPS BASE
+-- ============================================================
+
+vim.keymap.set("n", "-", "<CMD>Oil<CR>", { desc = "Oil" })
+
+vim.keymap.set("n", "<leader>ff", require("telescope.builtin").find_files)
+vim.keymap.set("n", "<leader>fg", require("telescope.builtin").live_grep)
+vim.keymap.set("n", "<leader>fb", require("telescope.builtin").buffers)
+
+vim.keymap.set("n", "<leader>w", "<cmd>w<CR>")
+vim.keymap.set("n", "<leader>q", "<cmd>q<CR>")
+vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
+
+-- terminal
+vim.keymap.set("n", "<leader>t", function()
+  vim.cmd("botright 12split")
+  vim.cmd("terminal")
+  vim.cmd("startinsert")
+end)
+
+vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+
+-- window navigation
+vim.keymap.set("n", "<C-h>", "<C-w>h")
+vim.keymap.set("n", "<C-j>", "<C-w>j")
+vim.keymap.set("n", "<C-k>", "<C-w>k")
+vim.keymap.set("n", "<C-l>", "<C-w>l")
+
+-- reload config
+vim.keymap.set("n", "<leader>r", "<cmd>source $MYVIMRC<CR>")
+
+-- ============================================================
 -- AUTOPAIRS
 -- ============================================================
 
 require("nvim-autopairs").setup()
 
 -- ============================================================
--- OIL (file explorer)
--- ============================================================
-
-require("oil").setup({
-  default_file_explorer = true,
-  view_options = { show_hidden = true },
-})
-
-vim.keymap.set("n", "-", "<CMD>Oil<CR>", { desc = "Oil" })
-
--- ============================================================
--- TELESCOPE
--- ============================================================
-
-local builtin = require("telescope.builtin")
-vim.keymap.set("n", "<leader>ff", builtin.find_files)
-vim.keymap.set("n", "<leader>fg", builtin.live_grep)
-vim.keymap.set("n", "<leader>fb", builtin.buffers)
-
--- ============================================================
--- MASON + LSP (CORRIGIDO)
+-- MASON
 -- ============================================================
 
 require("mason").setup()
+
 require("mason-lspconfig").setup({
   ensure_installed = {
     "lua_ls",
@@ -136,28 +180,31 @@ require("mason-lspconfig").setup({
   },
 })
 
-local lspconfig = require("lspconfig")
+-- ============================================================
+-- LSP (NEOVIM 0.11+ CORRIGIDO)
+-- ============================================================
+
 local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
-local function setup(server)
-  lspconfig[server].setup({
-    capabilities = capabilities,
-  })
-end
+vim.lsp.config("*", {
+  capabilities = capabilities,
+})
 
-setup("lua_ls")
-setup("ts_ls")
-setup("html")
-setup("cssls")
-setup("jsonls")
-setup("pyright")
-setup("gopls")
-setup("rust_analyzer")
-setup("intelephense")
-setup("clangd")
+vim.lsp.enable({
+  "lua_ls",
+  "ts_ls",
+  "html",
+  "cssls",
+  "jsonls",
+  "pyright",
+  "gopls",
+  "rust_analyzer",
+  "intelephense",
+  "clangd",
+})
 
 -- ============================================================
--- CMP (AUTOCOMPLETE)
+-- CMP
 -- ============================================================
 
 local cmp = require("cmp")
@@ -168,12 +215,14 @@ cmp.setup({
       require("luasnip").lsp_expand(args.body)
     end,
   },
+
   mapping = cmp.mapping.preset.insert({
     ["<C-Space>"] = cmp.mapping.complete(),
     ["<CR>"] = cmp.mapping.confirm({ select = true }),
     ["<Tab>"] = cmp.mapping.select_next_item(),
     ["<S-Tab>"] = cmp.mapping.select_prev_item(),
   }),
+
   sources = {
     { name = "nvim_lsp" },
     { name = "luasnip" },
@@ -183,66 +232,9 @@ cmp.setup({
 })
 
 -- autopairs + cmp
+require("nvim-autopairs").setup()
 local cmp_autopairs = require("nvim-autopairs.completion.cmp")
 cmp.event:on("confirm_done", cmp_autopairs.on_confirm_done())
-
--- ============================================================
--- TREESITTER (CORRIGIDO)
--- ============================================================
-
-require("nvim-treesitter.configs").setup({
-  highlight = { enable = true },
-  indent = { enable = true },
-  ensure_installed = {
-    "lua",
-    "javascript",
-    "typescript",
-    "html",
-    "css",
-    "json",
-    "python",
-    "go",
-    "rust",
-    "c",
-    "cpp",
-    "php",
-  },
-})
-
--- ============================================================
--- TERMINAL
--- ============================================================
-
-vim.keymap.set("n", "<leader>t", function()
-  vim.cmd("botright 12split")
-  vim.cmd("terminal")
-  vim.cmd("startinsert")
-end)
-
-vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
-
--- ============================================================
--- WINDOWS NAVIGATION
--- ============================================================
-
-vim.keymap.set("n", "<C-h>", "<C-w>h")
-vim.keymap.set("n", "<C-j>", "<C-w>j")
-vim.keymap.set("n", "<C-k>", "<C-w>k")
-vim.keymap.set("n", "<C-l>", "<C-w>l")
-
--- ============================================================
--- QUALITY OF LIFE
--- ============================================================
-
-vim.keymap.set("n", "<leader>w", "<cmd>w<CR>")
-vim.keymap.set("n", "<leader>q", "<cmd>q<CR>")
-
-vim.keymap.set("n", "<leader>r", function()
-  vim.cmd("source $MYVIMRC")
-  print("Config reloaded")
-end)
-
-vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
 
 -- ============================================================
 -- FINAL
